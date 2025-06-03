@@ -229,7 +229,7 @@ public class OverlapIndexTest
     }
 
     [Fact]
-    public void OverlapIndex_MergesFatLinesOnCenterLineMove()
+    public void Absorbs_Thin_OverlapSegments()
     {
         var inputWalls = new Elements.StandardWall[]
         {
@@ -254,5 +254,22 @@ public class OverlapIndexTest
         Assert.Equal(3, groups.Count);
         var total = groups.Sum(g => g.FatLines.Count);
         Assert.Equal(3, groups.Sum(g => g.FatLines.Count));
+
+        var lines = new (Line line, double thickness)[] {
+           (new((0,0), (1,0)), 0.2),
+           (new ((0.5, 0), (1.5, 0)), 0.05),
+           (new ((1.01, 0), (2, 0)), 0.2),
+        };
+
+        var idxLines = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in lines)
+        {
+            idxLines.AddItem(line, line, thickness);
+        }
+
+        var lineGroups = idxLines.GetOverlapGroups();
+        Assert.Single(lineGroups);
+        var group = lineGroups.First();
+        Assert.Single(group.FatLines);
     }
 }
