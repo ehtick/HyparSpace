@@ -1,6 +1,4 @@
-using Xunit;
 using Elements.Geometry;
-using System.Linq;
 
 namespace WallsLOD200.Tests;
 
@@ -184,5 +182,49 @@ public class OverlapIndexTest
         var groups = idx.GetOverlapGroups();
         Assert.Single(groups);
 
+    }
+
+    [Fact]
+    public void OverlapIndex_DoesNotMergeFatLinesSeparatedByGap()
+    {
+        var inputFatLines = new (Line line, double thickness)[]
+            {
+                // Fatlines that touch edge to edge
+                (new Line((-1,1), (-1, 5)), 2),
+                (new Line((1,1), (1, 5)), 2),
+
+                // Fatlines with a 1 unit gap between their edges
+                (new Line((-1,-5), (-1, 0)), 1),
+                (new Line((1,-5), (1, 0)), 1),
+            };
+
+        var idx = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in inputFatLines)
+        {
+            idx.AddItem(line, line, thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(3, groups.Count);
+    }
+
+    [Fact]
+    public void OverlapIndex_DoesNotMergeFatLinesOnMinorOverlap()
+    {
+        var inputFatLines = new (Line line, double thickness)[]
+            {
+                // Fatlines that just barely overlap on edge
+                (new Line((0,0), (0, 5)), .1),
+                (new Line((0.08,-5), (0.08, 0)), .1),
+            };
+
+        var idx = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in inputFatLines)
+        {
+            idx.AddItem(line, line, thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(2, groups.Count);
     }
 }
