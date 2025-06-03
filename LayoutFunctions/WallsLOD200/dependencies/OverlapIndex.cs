@@ -13,6 +13,7 @@ public readonly record struct FatLine(Line Centerline, double Thickness);
 /// </summary>
 public class OverlapMergeGroup<T>
 {
+    private const double MinSliceLength = 0.1;
     /// <summary>
     /// The original items in this group.
     /// </summary>
@@ -52,6 +53,14 @@ public class OverlapMergeGroup<T>
             if (s1 - s0 < Vector3.EPSILON)
             {
                 continue;            // zero-length slot
+            }
+
+            // if projected length is too small, skip it entirely:
+            if ((s1 - s0) < MinSliceLength)
+            {
+                // do NOT start or extend any “open” fat‐line here
+                // let the next interval (if it exists) reconnect as needed.
+                continue;
             }
 
             // 2.  which segments cover [s0,s1]?

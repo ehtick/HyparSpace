@@ -227,4 +227,32 @@ public class OverlapIndexTest
         var groups = idx.GetOverlapGroups();
         Assert.Equal(2, groups.Count);
     }
+
+    [Fact]
+    public void OverlapIndex_MergesFatLinesOnCenterLineMove()
+    {
+        var inputWalls = new Elements.StandardWall[]
+        {
+            new Elements.StandardWall(new Line((1.100000, 1.112500, 0.000000), (1.100000, 2.262500, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 2.287500, 0.000000), (1.100000, 3.350000, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.137500, 3.350000, 0.000000), (1.137500, -0.000000, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 1.087500, 0.000000), (0.000000, 1.087500, 0.000000)), 0.175000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 2.262500, 0.000000), (0.000000, 2.262500, 0.000000)), 0.175000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((0.000000, 1.112500, 0.000000), (1.100000, 1.112500, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, -0.000000, 0.000000), (1.100000, 1.087500, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((0.000000, 2.287500, 0.000000), (1.100000, 2.287500, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+        };
+
+        var idx = new OverlapIndex<Elements.StandardWall>();
+        foreach (var wall in inputWalls)
+        {
+            var transformedLine = wall.CenterLine.TransformedLine(wall.Transform);
+            idx.AddItem(wall, transformedLine, wall.Thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(3, groups.Count);
+        var total = groups.Sum(g => g.FatLines.Count);
+        Assert.Equal(3, groups.Sum(g => g.FatLines.Count));
+    }
 }
