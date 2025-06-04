@@ -1,6 +1,4 @@
-using Xunit;
 using Elements.Geometry;
-using System.Linq;
 
 namespace WallsLOD200.Tests;
 
@@ -184,5 +182,94 @@ public class OverlapIndexTest
         var groups = idx.GetOverlapGroups();
         Assert.Single(groups);
 
+    }
+
+    [Fact]
+    public void OverlapIndex_DoesNotMergeFatLinesSeparatedByGap()
+    {
+        var inputFatLines = new (Line line, double thickness)[]
+            {
+                // Fatlines that touch edge to edge
+                (new Line((-1,1), (-1, 5)), 2),
+                (new Line((1,1), (1, 5)), 2),
+
+                // Fatlines with a 1 unit gap between their edges
+                (new Line((-1,-5), (-1, 0)), 1),
+                (new Line((1,-5), (1, 0)), 1),
+            };
+
+        var idx = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in inputFatLines)
+        {
+            idx.AddItem(line, line, thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(3, groups.Count);
+    }
+
+    [Fact]
+    public void OverlapIndex_DoesNotMergeFatLinesOnMinorOverlap()
+    {
+        var inputFatLines = new (Line line, double thickness)[]
+            {
+                // Fatlines that just barely overlap on edge
+                (new Line((0,0), (0, 5)), .1),
+                (new Line((0.08,-5), (0.08, 0)), .1),
+            };
+
+        var idx = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in inputFatLines)
+        {
+            idx.AddItem(line, line, thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(2, groups.Count);
+    }
+
+    [Fact]
+    public void Absorbs_Thin_OverlapSegments()
+    {
+        var inputWalls = new Elements.StandardWall[]
+        {
+            new Elements.StandardWall(new Line((1.100000, 1.112500, 0.000000), (1.100000, 2.262500, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 2.287500, 0.000000), (1.100000, 3.350000, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.137500, 3.350000, 0.000000), (1.137500, -0.000000, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 1.087500, 0.000000), (0.000000, 1.087500, 0.000000)), 0.175000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, 2.262500, 0.000000), (0.000000, 2.262500, 0.000000)), 0.175000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((0.000000, 1.112500, 0.000000), (1.100000, 1.112500, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((1.100000, -0.000000, 0.000000), (1.100000, 1.087500, 0.000000)), 0.200000, 3.048000, null, wallsVersion: "3"),
+            new Elements.StandardWall(new Line((0.000000, 2.287500, 0.000000), (1.100000, 2.287500, 0.000000)), 0.125000, 3.048000, null, wallsVersion: "3"),
+        };
+
+        var idx = new OverlapIndex<Elements.StandardWall>();
+        foreach (var wall in inputWalls)
+        {
+            var transformedLine = wall.CenterLine.TransformedLine(wall.Transform);
+            idx.AddItem(wall, transformedLine, wall.Thickness);
+        }
+
+        var groups = idx.GetOverlapGroups();
+        Assert.Equal(3, groups.Count);
+        var total = groups.Sum(g => g.FatLines.Count);
+        Assert.Equal(3, groups.Sum(g => g.FatLines.Count));
+
+        var lines = new (Line line, double thickness)[] {
+           (new((0,0), (1,0)), 0.2),
+           (new ((0.5, 0), (1.5, 0)), 0.05),
+           (new ((1.01, 0), (2, 0)), 0.2),
+        };
+
+        var idxLines = new OverlapIndex<Line>();
+        foreach (var (line, thickness) in lines)
+        {
+            idxLines.AddItem(line, line, thickness);
+        }
+
+        var lineGroups = idxLines.GetOverlapGroups();
+        Assert.Single(lineGroups);
+        var group = lineGroups.First();
+        Assert.Single(group.FatLines);
     }
 }

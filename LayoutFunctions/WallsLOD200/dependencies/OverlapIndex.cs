@@ -68,6 +68,14 @@ public class OverlapMergeGroup<T>
             double thick = high - low;
             double offC = 0.5 * (low + high);
 
+            // if projected length is shorter than it is thick, skip it entirely
+            if ((s1 - s0) < thick)
+            {
+                // do NOT start or extend any “open” fat‐line here
+                // let the next interval (if it exists) reconnect as needed.
+                continue;
+            }
+
             // 4. build centerline for this slice
             var start = new Vector3(u.X * s0 + n.X * offC,
                                     u.Y * s0 + n.Y * offC, 0);
@@ -193,12 +201,12 @@ public class OverlapIndex<T>(double angleTolerance = 1e-3, double longTolerance 
                 }
                 else                                   // gap ⇒ close cluster
                 {
-                    EmitLongitudinalGroups(currentCluster, result);
+                    EmitLongitudinalGroups(currentCluster, result, thicknessTolerance);
                     currentCluster = [seg];
                     currentHigh = high;
                 }
             }
-            EmitLongitudinalGroups(currentCluster, result);
+            EmitLongitudinalGroups(currentCluster, result, thicknessTolerance);
         }
 
         return result;
@@ -262,8 +270,9 @@ public class OverlapIndex<T>(double angleTolerance = 1e-3, double longTolerance 
     /// <param name="cluster">Cluster of segments to process</param>
     /// <param name="sink">Collection to add resulting groups to</param>
     private void EmitLongitudinalGroups(
-    List<SegmentRecord<T>> cluster,
-    List<OverlapMergeGroup<T>> sink)
+        List<SegmentRecord<T>> cluster,
+        List<OverlapMergeGroup<T>> sink,
+        double thicknessTolerance)
     {
         if (cluster.Count == 0)
         {
@@ -274,23 +283,70 @@ public class OverlapIndex<T>(double angleTolerance = 1e-3, double longTolerance 
         cluster.Sort((a, b) => a.MinS.CompareTo(b.MinS));
 
         var current = new List<SegmentRecord<T>>();
-        double currentMax = double.NegativeInfinity;
+        double currentMinS = double.PositiveInfinity;
+        double currentMaxS = double.NegativeInfinity;
+        double groupOffsetMin = 0;
+        double groupOffsetMax = 0;
+        double refOffset = double.NaN; // centerline offset of the first segment
 
         foreach (var seg in cluster)
         {
-            if (seg.MinS <= currentMax + _longTolerance)        // overlaps current set
+            double segLowOffset = seg.Offset - seg.OffsetTolerance - thicknessTolerance;
+            double segHighOffset = seg.Offset + seg.OffsetTolerance + thicknessTolerance;
+
+            if (current.Count == 0)
             {
-                current.Add(seg);
-                currentMax = Math.Max(currentMax, seg.MaxS);
+                current = new List<SegmentRecord<T>> { seg };
+                currentMinS = seg.MinS;
+                currentMaxS = seg.MaxS;
+                groupOffsetMin = segLowOffset;
+                groupOffsetMax = segHighOffset;
+                refOffset = seg.Offset;
             }
             else
             {
-                if (current.Count > 0)
+                // compute overlaps
+                double overlapMinS = Math.Max(seg.MinS, currentMinS);
+                double overlapMaxS = Math.Min(seg.MaxS, currentMaxS);
+                double sOverlapLen = overlapMaxS - overlapMinS;
+                double offsetOverlapLow = Math.Max(segLowOffset, groupOffsetMin);
+                double offsetOverlapHigh = Math.Min(segHighOffset, groupOffsetMax);
+                double offsetOverlapLen = offsetOverlapHigh - offsetOverlapLow;
+
+                // check if centerlines are effectively collinear (within perp‐tol)
+                bool collinear = Math.Abs(seg.Offset - refOffset) <= seg.OffsetTolerance;
+
+                bool shouldMerge = false;
+                if (collinear)
+                {
+                    // collinear: allow S intervals to touch (zero-length) within longitude tolerance
+                    shouldMerge = (sOverlapLen + _longTolerance) >= 0;
+                }
+                else
+                {
+                    // parallel-but-distinct: offset intervals must overlap (or touch),
+                    // and S must have positive overlap
+                    shouldMerge = (offsetOverlapLen >= -1e-6) && (sOverlapLen > _longTolerance);
+                }
+
+                if (shouldMerge)
+                {
+                    current.Add(seg);
+                    currentMinS = Math.Min(currentMinS, seg.MinS);
+                    currentMaxS = Math.Max(currentMaxS, seg.MaxS);
+                    groupOffsetMin = Math.Min(groupOffsetMin, segLowOffset);
+                    groupOffsetMax = Math.Max(groupOffsetMax, segHighOffset);
+                }
+                else
                 {
                     sink.Add(new OverlapMergeGroup<T>(current));
+                    current = new List<SegmentRecord<T>> { seg };
+                    currentMinS = seg.MinS;
+                    currentMaxS = seg.MaxS;
+                    groupOffsetMin = segLowOffset;
+                    groupOffsetMax = segHighOffset;
+                    refOffset = seg.Offset;
                 }
-                current = [seg];
-                currentMax = seg.MaxS;
             }
         }
         if (current.Count > 0)
