@@ -26,10 +26,6 @@ namespace DefineProgramRequirements
             {
                 output.Errors.Add("No two programs can have the same Program Name. Please remove one of the duplicates.");
             }
-            foreach (var pr in programRequirements)
-            {
-                pr.AdditionalProperties.Clear();
-            }
             var sum = programRequirements.Sum(p => p.AreaPerSpace * p.SpaceCount);
             var colorScheme = ColorScheme.ProgramColors;
 
