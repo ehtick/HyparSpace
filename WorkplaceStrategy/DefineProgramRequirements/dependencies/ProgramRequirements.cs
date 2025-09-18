@@ -35,7 +35,8 @@ public partial class ProgramRequirements
             DefaultWallType = this.DefaultWallType,
             ProgramDisplayName = this.ProgramDisplayName,
             LayoutType = this.LayoutType?.Id is not null ? new InputFolder(this.LayoutType.Id, Array.Empty<InputFileRef>(), this.LayoutType.Name) : null,
-            IsSpaceType = this.IsSpaceType ?? false
+            IsSpaceType = this.IsSpaceType ?? false,
+            AdditionalProperties = this.AdditionalProperties
         };
         req.Id = this.Id ?? req.Id;
         return req;
