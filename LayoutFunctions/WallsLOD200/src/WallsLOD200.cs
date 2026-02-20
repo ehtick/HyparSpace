@@ -34,7 +34,23 @@ namespace WallsLOD200
             {
                 return output;
             }
-            var allWalls = wallsModel.AllElementsOfType<StandardWall>();
+            var allWalls = wallsModel.AllElementsOfType<StandardWall>().ToList();
+
+            // For version 4+ walls, apply parent space transform before any processing
+            if (inputModels.TryGetValue("Space Planning Zones", out var spaceModel))
+            {
+                foreach (var wall in allWalls)
+                {
+                    if (int.TryParse(wall.WallsVersion, out var version) && version >= 4 &&
+                        wall.AdditionalProperties.TryGetValue("Parent", out var spaceIdObj) &&
+                        Guid.TryParse(spaceIdObj?.ToString(), out var spaceId) &&
+                        spaceModel.Elements.TryGetValue(spaceId, out var spaceElement) &&
+                        spaceElement is GeometricElement spaceGe)
+                    {
+                        wall.Transform = wall.Transform.Concatenated(spaceGe.Transform);
+                    }
+                }
+            }
 
             // if the unit system is metric, convert all 0.13335 thick walls to 0.135
             // if the unit system is imperial, convert all 0.135 thick walls to 0.13335
